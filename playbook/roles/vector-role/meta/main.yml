@@ -1,0 +1,12 @@
+---
+galaxy_info:
+  # Указываем namespace (ваш логин на Galaxy, все буквы строчные)
+  namespace: dk054
+  # Указываем корректное имя роли (без дефисов, только буквы и _)
+  role_name: vector_role
+  author: your_name
+  description: Role for installing and configuring Vector
+  company: your_company
+
+dependencies: []
+# List your role dependencies here, if any.

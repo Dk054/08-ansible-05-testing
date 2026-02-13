@@ -1,0 +1,40 @@
+---
+- name: Verify Vector installation
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check Vector binary exists
+      stat:
+        path: /usr/local/bin/vector
+      register: vector_bin
+
+    - name: Assert Vector binary is present
+      assert:
+        that: vector_bin.stat.exists
+        fail_msg: "Vector binary not found at /usr/local/bin/vector"
+
+    - name: Check Vector version
+      command: /usr/local/bin/vector --version
+      changed_when: false
+      register: vector_version
+
+    - name: Assert Vector runs
+      assert:
+        that: vector_version.rc == 0
+        fail_msg: "Vector failed to execute"
+
+    - name: Check Vector config
+      command: /usr/local/bin/vector validate /etc/vector/vector.toml
+      changed_when: false
+      register: vector_config
+      ignore_errors: yes
+
+    - name: Show config error if any
+      debug:
+        msg: "{{ vector_config.stdout }}"
+      when: vector_config.rc != 0
+
+    - name: Assert Vector config is valid
+      assert:
+        that: vector_config.rc == 0
+        fail_msg: "Vector config invalid: {{ vector_config.stdout }}"

@@ -1,0 +1,31 @@
+---
+- name: Prepare
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Install Python for Ubuntu
+      raw: |
+        apt-get update -qq
+        apt-get install -qq python3 python3-apt
+      args:
+        executable: /bin/bash
+      when: inventory_hostname == "ubuntu-vm"
+      changed_when: false
+
+    - name: Set Python interpreter for Ubuntu
+      set_fact:
+        ansible_python_interpreter: /usr/bin/python3
+      when: inventory_hostname == "ubuntu-vm"
+
+    - name: Install Python for OracleLinux
+      raw: |
+        yum install -y python3 python3-pip
+      args:
+        executable: /bin/bash
+      when: inventory_hostname == "oraclelinux-vm"
+      changed_when: false
+
+    - name: Set Python interpreter for OracleLinux
+      set_fact:
+        ansible_python_interpreter: /usr/bin/python3
+      when: inventory_hostname == "oraclelinux-vm"

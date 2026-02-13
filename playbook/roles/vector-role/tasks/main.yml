@@ -1,0 +1,93 @@
+- name: Create vector user
+  ansible.builtin.user:
+    name: vector
+    system: true
+    create_home: false
+    shell: /usr/sbin/nologin
+
+- name: Check if Vector is already installed
+  ansible.builtin.stat:
+    path: /usr/local/bin/vector
+  register: vector_binary
+
+- name: Download Vector archive
+  ansible.builtin.get_url:
+    url: "https://packages.timber.io/vector/{{ vector_version }}/vector-{{ vector_version }}-x86_64-unknown-linux-musl.tar.gz"
+    dest: /tmp/vector.tar.gz
+    mode: '0644'
+  when: not vector_binary.stat.exists
+  register: download
+
+- name: Extract Vector archive
+  ansible.builtin.unarchive:
+    src: /tmp/vector.tar.gz
+    dest: /tmp/
+    remote_src: yes
+    creates: /tmp/vector-x86_64-unknown-linux-musl/bin/vector
+  when: download.changed
+  register: extract
+
+- name: Copy Vector binary
+  ansible.builtin.copy:
+    src: "/tmp/vector-x86_64-unknown-linux-musl/bin/vector"
+    dest: /usr/local/bin/vector
+    remote_src: yes
+    mode: '0755'
+    owner: root
+    group: root
+  when: extract.changed or (not vector_binary.stat.exists and extract is not defined)
+
+- name: Clean up temporary files
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /tmp/vector.tar.gz
+    - /tmp/vector-x86_64-unknown-linux-musl
+  when: extract.changed or download.changed
+
+- name: Create config directory
+  ansible.builtin.file:
+    path: /etc/vector
+    state: directory
+    owner: vector
+    group: vector
+    mode: '0755'
+- name: Create data directory
+  ansible.builtin.file:
+    path: /var/lib/vector
+    state: directory
+    owner: vector
+    group: vector
+    mode: '0755'
+- name: Create vector config
+  ansible.builtin.copy:
+    dest: /etc/vector/vector.toml
+    content: |
+      [sources.demo]
+      type = "demo_logs"
+      format = "json"
+      lines = ["Hello World", "Test message", "Vector is working"]
+      
+      [sinks.console]
+      type = "console"
+      inputs = ["demo"]
+      encoding.codec = "json"
+      target = "stdout"
+    mode: '0644'
+  register: config_result
+
+- name: Show config path
+  debug:
+    msg: "Config created at /etc/vector/vector.toml"
+  when: config_result.changed
+
+- name: Start vector service
+  systemd:
+    name: vector
+    state: started
+    enabled: yes
+  when:
+    - vector_start_service | default(true) | bool
+    - ansible_service_mgr == "systemd"
+  register: service_start

@@ -1,0 +1,56 @@
+---
+- name: Create
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  no_log: "{{ molecule_no_log }}"
+  tasks:
+    - name: Create molecule instance(s)
+      community.docker.docker_container:
+        image: "{{ item.image }}"
+        name: "{{ item.name }}"
+        hostname: "{{ item.name }}"
+        state: started
+        recreate: false
+        privileged: "{{ item.privileged | default(false) }}"
+        command: "{{ item.command | default('sleep infinity') }}"
+        volumes: "{{ item.volumes | default(omit) }}"
+        capabilities: "{{ item.capabilities | default(omit) }}"
+        env: "{{ item.env | default(omit) }}"
+      register: server
+      loop: "{{ molecule_yml.platforms }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Debug server variable
+      ansible.builtin.debug:
+        var: server
+      when: server.changed
+
+    - name: Populate instance config dict
+      ansible.builtin.set_fact:
+        instance_conf_dict: {
+          'instance': "{{ item.container.Name | regex_replace('^/', '') }}",
+          'address': "{{ item.container.NetworkSettings.IPAddress | default('127.0.0.1') }}",
+          'user': "root",
+          'port': "22",
+          'identity_file': "{{ molecule_ephemeral_directory }}/ssh_key",
+        }
+      loop: "{{ server.results }}"
+      loop_control:
+        label: "{{ item.container.Name }}"
+      when: server.changed
+
+    - name: Convert instance config dict to a list
+      ansible.builtin.set_fact:
+        instance_conf: "{{ instance_conf_dict.values() | list }}"
+      when: server.changed
+
+    - name: Dump instance config
+      ansible.builtin.copy:
+        content: |
+          # Molecule managed
+
+          {{ instance_conf | to_json | from_json | to_yaml }}
+        dest: "{{ molecule_instance_config }}"
+      when: server.changed
